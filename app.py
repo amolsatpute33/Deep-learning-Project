@@ -1,123 +1,60 @@
 # app.py
-
 import streamlit as st
-import tensorflow as tf
 import numpy as np
-from PIL import Image
-import matplotlib.pyplot as plt
-import os
+from tensorflow.keras.models import load_model
+from tensorflow.keras.preprocessing import image
 import gdown
-import pickle
+import os
+from PIL import Image
 
-# Page configuration
-st.set_page_config(page_title="Pneumonia Detection", layout="wide")
+# --------------------------
+# 1. Download Model from Google Drive
+# --------------------------
+MODEL_PATH = "pneumonia_model.h5"
+GDRIVE_LINK = "https://drive.google.com/uc?id=1t5UlwpWWeIniy_WazLj6XnWtZ8cdbnlk"
 
-st.title("Pneumonia Detection from Chest X-Ray")
-st.write("Upload a chest X-ray image and the model will predict whether it is Normal or Pneumonia.")
-
-# ------------------ Model Download ------------------ #
-MODEL_PATH = "pneumonia_detection_model.h5"
-
-# Google Drive direct download link for your model
-MODEL_URL = "https://drive.google.com/uc?export=download&id=1t5UlwpWWeIniy_WazLj6XnWtZ8cdbnlk"
-
-# Download the model if it doesn't exist
 if not os.path.exists(MODEL_PATH):
-    st.info("Downloading model...")
-    gdown.download(MODEL_URL, MODEL_PATH, quiet=False)
-    st.success("Model downloaded successfully!")
+    st.info("Downloading model from Google Drive...")
+    gdown.download(GDRIVE_LINK, MODEL_PATH, quiet=False)
 
-# Load model
+# --------------------------
+# 2. Load Model
+# --------------------------
 @st.cache_resource
-def load_model():
-    model = tf.keras.models.load_model(MODEL_PATH)
+def load_pneumonia_model():
+    model = load_model(MODEL_PATH)
     return model
 
-model = load_model()
+model = load_pneumonia_model()
 
-# ------------------ Sidebar Navigation ------------------ #
-menu = ["Predict X-ray", "Dataset Overview", "Training Metrics"]
-choice = st.sidebar.selectbox("Menu", menu)
+# --------------------------
+# 3. Streamlit App Layout
+# --------------------------
+st.title("🧠 Pneumonia Detection from Chest X-ray")
+st.write("Upload a chest X-ray image and get a prediction: Normal or Pneumonia.")
 
-# ------------------ Predict X-ray ------------------ #
-if choice == "Predict X-ray":
-    uploaded_file = st.file_uploader("Upload Chest X-ray Image", type=["jpg","jpeg","png","webp"])
-    if uploaded_file is not None:
-        img = Image.open(uploaded_file).convert('L')  # convert to grayscale
-        st.image(img, caption="Uploaded X-ray", use_column_width=True)
-        
-        # Preprocess the image
-        img = img.resize((224,224))
-        img_array = np.array(img)/255.0
-        img_array = img_array.reshape(1,224,224,1)
-        
-        # Predict
-        prediction = model.predict(img_array)
-        if prediction > 0.5:
-            st.error("⚠️ Pneumonia Detected")
-        else:
-            st.success("✅ Normal Chest X-ray")
+uploaded_file = st.file_uploader("Choose an X-ray image...", type=["jpg", "jpeg", "png"])
 
-# ------------------ Dataset Overview ------------------ #
-elif choice == "Dataset Overview":
-    st.header("Dataset Sample Images and Class Distribution")
+if uploaded_file is not None:
+    # Open image
+    img = Image.open(uploaded_file).convert('RGB')
+    st.image(img, caption="Uploaded Image", use_column_width=True)
     
-    # Modify this path if dataset exists
-    dataset_path = "Chest-Xray-2/chest_xray/train"
-    classes = ['NORMAL','PNEUMONIA']
-    counts = {}
-    
-    st.write("**Class Distribution:**")
-    for cls in classes:
-        folder = os.path.join(dataset_path, cls)
-        if os.path.exists(folder):
-            counts[cls] = len(os.listdir(folder))
-        else:
-            counts[cls] = 0
-    st.bar_chart(counts)
-    
-    # Display sample images
-    st.write("**Sample Images:**")
-    fig, axes = plt.subplots(2, 4, figsize=(12,6))
-    
-    for i, cls in enumerate(classes):
-        folder = os.path.join(dataset_path, cls)
-        if os.path.exists(folder):
-            images = os.listdir(folder)[:4]
-            for j, img_name in enumerate(images):
-                img = Image.open(os.path.join(folder, img_name)).convert('L')
-                axes[i,j].imshow(img, cmap='gray')
-                axes[i,j].set_title(cls)
-                axes[i,j].axis('off')
-        else:
-            for j in range(4):
-                axes[i,j].axis('off')
-    
-    st.pyplot(fig)
+    # Preprocess image
+    IMG_SIZE = (150, 150)  # adjust according to your trained model
+    img_resized = img.resize(IMG_SIZE)
+    img_array = image.img_to_array(img_resized)
+    img_array = np.expand_dims(img_array, axis=0)
+    img_array = img_array / 255.0  # normalize if your model was trained on normalized images
 
-# ------------------ Training Metrics ------------------ #
-elif choice == "Training Metrics":
-    st.header("Training Accuracy & Loss Plots")
+    # Predict
+    prediction = model.predict(img_array)
     
-    history_file = "history.pkl"
-    if os.path.exists(history_file):
-        with open(history_file, "rb") as f:
-            history = pickle.load(f)
-        
-        # Accuracy plot
-        st.subheader("Accuracy")
-        plt.plot(history['accuracy'], label='Train Accuracy')
-        plt.plot(history['val_accuracy'], label='Validation Accuracy')
-        plt.legend()
-        st.pyplot(plt)
-        plt.clf()
-        
-        # Loss plot
-        st.subheader("Loss")
-        plt.plot(history['loss'], label='Train Loss')
-        plt.plot(history['val_loss'], label='Validation Loss')
-        plt.legend()
-        st.pyplot(plt)
-        plt.clf()
+    if prediction[0][0] > 0.5:
+        st.error(f"Pneumonia Detected! ({prediction[0][0]*100:.2f}% confidence)")
     else:
-        st.warning("Training history not found. Save it as 'history.pkl' after training.")
+        st.success(f"Normal Lung X-ray! ({(1-prediction[0][0])*100:.2f}% confidence)")
+    
+   
+       
+    
