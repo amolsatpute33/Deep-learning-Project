@@ -1,5 +1,6 @@
-streamlit
-tensorflow
-pillow
+streamlit==1.22.0
+tensorflow==2.13.0
 numpy
-gdown
+pandas
+opencv-python
+matplotlib
