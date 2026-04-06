@@ -50,7 +50,7 @@ chest_xray/
 - NumPy  
 - Matplotlib  
 - Scikit-learn  
-- Google Colab  
+
 
 ---
 
